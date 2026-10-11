@@ -140,7 +140,7 @@ app.get("/yemot-search", async (req, res) => {
       const recordedPath = songQuery.startsWith("ivr2:") ? songQuery :
         `ivr2:${songQuery.startsWith("/") ? songQuery : `/${songQuery}`}`;
       const downloadUrl = new URL(`${YEMOT_API_BASE}DownloadFile`);
-      downloadUrl.searchParams.set("token", loginData.token);
+      downloadUrl.searchParams.set("token", `${YEMOT_USERNAME}:${YEMOT_PASSWORD}`);
       downloadUrl.searchParams.set("path", recordedPath);
       const audioResponse = await fetch(downloadUrl);
       if (!audioResponse.ok) return res.send("id_list_message=t-לא הצלחתי להוריד את ההקלטה.");
