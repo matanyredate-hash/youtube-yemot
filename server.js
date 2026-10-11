@@ -87,6 +87,13 @@ app.post("/yemot-test", async (req, res) => {
   }
 });
 
+
+// Yemot extension connection test: Yemot expects plain text, not JSON.
+app.get("/yemot", (req, res) => {
+  res.set("Content-Type", "text/plain; charset=utf-8");
+  res.send("החיבור לשרת עובד.");
+});
+
 app.get("/search", async (req, res) => {
   try {
     const query = String(req.query.q || "").trim();
