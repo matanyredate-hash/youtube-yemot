@@ -94,6 +94,92 @@ app.get("/yemot", (req, res) => {
   res.send("החיבור לשרת עובד.");
 });
 
+
+// Yemot IVR flow: ask for a spoken song query, list 5 search results,
+// then collect a one-digit selection. Returns plain-text Yemot commands.
+app.get("/yemot-search", async (req, res) => {
+  res.set("Content-Type", "text/plain; charset=utf-8");
+
+  const cleanForTts = (value) =>
+    String(value || "")
+      .replace(/[&=<>]/g, " ")
+      .replace(/[\r\n]+/g, " ")
+      .replace(/[“”"']/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 180);
+
+  const songQuery = String(req.query.SONG || "").trim();
+  const choice = String(req.query.CHOICE || "").trim();
+
+  if (!songQuery) {
+    return res.send(
+      "read=t-אנא אמרו את שם השיר או הזמר, ואז המתינו לסיום הזיהוי=SONG,,voice"
+    );
+  }
+
+  if (!YOUTUBE_API_KEY) {
+    return res.send("id_list_message=t-שגיאה: מפתח החיפוש לא מוגדר.");
+  }
+
+  try {
+    const url = new URL("https://www.googleapis.com/youtube/v3/search");
+    url.searchParams.set("part", "snippet");
+    url.searchParams.set("q", songQuery);
+    url.searchParams.set("type", "video");
+    url.searchParams.set("maxResults", "5");
+    url.searchParams.set("regionCode", "IL");
+    url.searchParams.set("relevanceLanguage", "he");
+    url.searchParams.set("key", YOUTUBE_API_KEY);
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      return res.send("id_list_message=t-אירעה שגיאה בחיפוש. נסו שוב.");
+    }
+
+    const data = await response.json();
+    const results = (data.items || [])
+      .filter((item) => item.id?.videoId)
+      .slice(0, 5)
+      .map((item) => ({
+        videoId: item.id.videoId,
+        title: cleanForTts(item.snippet?.title),
+        channel: cleanForTts(item.snippet?.channelTitle)
+      }));
+
+    if (!results.length) {
+      return res.send(
+        "read=t-לא נמצאו תוצאות. אמרו שוב את שם השיר=SONG,,voice"
+      );
+    }
+
+    if (choice) {
+      const selected = results[Number(choice) - 1];
+      if (!selected || !["1", "2", "3", "4", "5"].includes(choice)) {
+        return res.send(
+          "id_list_message=t-בחירה לא תקינה.&read=t-הקישו מספר בין אחת לחמש=CHOICE,,1,1,Digits"
+        );
+      }
+
+      return res.send(
+        `id_list_message=t-בחרתם ${choice}. ${selected.title}.&noop=בחירת השיר התקבלה`
+      );
+    }
+
+    const spokenResults = results
+      .map((item, index) => `אפשרות ${index + 1}. ${item.title}`)
+      .join(". ")
+      .slice(0, 1200);
+
+    return res.send(
+      `id_list_message=t-מצאתי תוצאות עבור ${cleanForTts(songQuery)}. ${spokenResults}.&read=t-להשמעת הבחירה הקישו מספר מאחת עד חמש=CHOICE,,1,1,Digits`
+    );
+  } catch (error) {
+    console.error("Yemot search flow failed.");
+    return res.send("id_list_message=t-אירעה שגיאה. נסו שוב מאוחר יותר.");
+  }
+});
+
 app.get("/search", async (req, res) => {
   try {
     const query = String(req.query.q || "").trim();
