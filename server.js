@@ -143,9 +143,18 @@ app.get("/yemot-search", async (req, res) => {
       downloadUrl.searchParams.set("token", `${YEMOT_USERNAME}:${YEMOT_PASSWORD}`);
       downloadUrl.searchParams.set("path", recordedPath);
       const audioResponse = await fetch(downloadUrl);
-      if (!audioResponse.ok) return res.send("id_list_message=t-לא הצלחתי להוריד את ההקלטה.");
       const audioBytes = await audioResponse.arrayBuffer();
-      if (!audioBytes.byteLength) return res.send("id_list_message=t-ההקלטה ריקה. נסו שוב.");
+      if (!audioResponse.ok || !audioBytes.byteLength) {
+        console.error("Yemot DownloadFile failed:", audioResponse.status, audioResponse.headers.get("content-type"));
+        return res.send("id_list_message=t-לא הצלחתי להוריד את ההקלטה מימות. נסו שוב.");
+      }
+      // Yemot may return a JSON error with HTTP 200; don't send that to transcription as audio.
+      const audioType = audioResponse.headers.get("content-type") || "";
+      const firstBytes = Buffer.from(audioBytes).subarray(0, 80).toString("utf8").trimStart();
+      if (audioType.includes("application/json") || firstBytes.startsWith("{") || firstBytes.startsWith("<")) {
+        console.error("Yemot DownloadFile returned an error payload:", firstBytes.slice(0, 160));
+        return res.send("id_list_message=t-ימות לא החזירה קובץ הקלטה תקין.");
+      }
 
       const form = new FormData();
       form.append("model", "gpt-4o-mini-transcribe");
@@ -159,7 +168,7 @@ app.get("/yemot-search", async (req, res) => {
       const tr = await trResponse.json();
       if (!trResponse.ok || !tr.text) {
         console.error("Transcription API failed:", tr.error?.message || trResponse.status);
-        return res.send("id_list_message=t-לא הצלחתי להבין את ההקלטה. נסו שוב.");
+        return res.send("id_list_message=t-שירות התמלול נכשל. בדקו את מפתח התמלול והחיוב בשרת.");
       }
       songQuery = String(tr.text).trim().slice(0, 200);
     }
