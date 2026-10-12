@@ -167,8 +167,14 @@ app.get("/yemot-search", async (req, res) => {
       });
       const tr = await trResponse.json();
       if (!trResponse.ok || !tr.text) {
-        console.error("Transcription API failed:", tr.error?.message || trResponse.status);
-        return res.send("id_list_message=t-שירות התמלול נכשל. בדקו את מפתח התמלול והחיוב בשרת.");
+        const apiError = tr.error || {};
+        console.error("Transcription API failed:", JSON.stringify({
+          status: trResponse.status,
+          type: apiError.type || null,
+          code: apiError.code || null,
+          message: apiError.message || "No transcription text returned"
+        }));
+        return res.send("id_list_message=t-שגיאת תמלול מספר " + trResponse.status + ". בדקו את לוגי Vercel.");
       }
       songQuery = String(tr.text).trim().slice(0, 200);
     }
