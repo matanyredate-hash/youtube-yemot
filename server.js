@@ -110,8 +110,8 @@ app.get("/yemot-search", async (req, res) => {
     let songQuery = String(req.query.SONG || "").trim();
     const choice = String(req.query.CHOICE || "").trim();
 
-    // Ignore Yemot's hangup notification instead of treating it as a new call.
-    if (String(req.query.hangup || "").toLowerCase() === "yes") {
+    // A hangup callback can still include the saved recording path. Process it when present.
+    if (String(req.query.hangup || "").toLowerCase() === "yes" && !songQuery && !choice) {
       return res.send("OK");
     }
 
