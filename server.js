@@ -123,8 +123,8 @@ app.get("/yemot-search", async (req, res) => {
     }
 
     if (/\.wav(?:$|\?)/i.test(songQuery) || /^\/[^/]+\//.test(songQuery)) {
-      if (!YEMOT_USERNAME || !YEMOT_PASSWORD || !process.env.OPENAI_API_KEY) {
-        return res.send("id_list_message=t-חסר מפתח תמלול או פרטי חיבור בשרת.");
+      if (!YEMOT_USERNAME || !YEMOT_PASSWORD || !process.env.GEMINI_API_KEY) {
+        return res.send("id_list_message=t-חסר מפתח Gemini או פרטי חיבור בשרת.");
       }
       const loginBody = new URLSearchParams({ username: YEMOT_USERNAME, password: YEMOT_PASSWORD });
       const loginResponse = await fetch(`${YEMOT_API_BASE}Login`, {
@@ -156,27 +156,47 @@ app.get("/yemot-search", async (req, res) => {
         return res.send("id_list_message=t-ימות לא החזירה קובץ הקלטה תקין.");
       }
 
-      const form = new FormData();
-      form.append("model", "gpt-4o-mini-transcribe");
-      form.append("language", "he");
-      form.append("file", new Blob([audioBytes], { type: "audio/wav" }), "song.wav");
-      const trResponse = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-        body: form
-      });
-      const tr = await trResponse.json();
-      if (!trResponse.ok || !tr.text) {
-        const apiError = tr.error || {};
-        console.error("Transcription API failed:", JSON.stringify({
-          status: trResponse.status,
-          type: apiError.type || null,
-          code: apiError.code || null,
+      const geminiResponse = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": process.env.GEMINI_API_KEY
+          },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                {
+                  text: "תמלל במדויק את הדיבור בהקלטה בעברית. החזר רק את המילים שנאמרו, בלי הסברים ובלי תוספות."
+                },
+                {
+                  inline_data: {
+                    mime_type: "audio/wav",
+                    data: Buffer.from(audioBytes).toString("base64")
+                  }
+                }
+              ]
+            }],
+            generationConfig: { temperature: 0 }
+          })
+        }
+      );
+      const geminiData = await geminiResponse.json();
+      const transcription = (geminiData.candidates?.[0]?.content?.parts || [])
+        .map(part => part.text || "")
+        .join(" ")
+        .trim();
+      if (!geminiResponse.ok || !transcription) {
+        const apiError = geminiData.error || {};
+        console.error("Gemini transcription failed:", JSON.stringify({
+          status: geminiResponse.status,
+          statusText: apiError.status || null,
           message: apiError.message || "No transcription text returned"
         }));
-        return res.send("id_list_message=t-שגיאת תמלול מספר " + trResponse.status + ". בדקו את לוגי Vercel.");
+        return res.send("id_list_message=t-שגיאת תמלול מספר " + geminiResponse.status + ". בדקו את לוגי Vercel.");
       }
-      songQuery = String(tr.text).trim().slice(0, 200);
+      songQuery = transcription.slice(0, 200);
     }
 
     if (!YOUTUBE_API_KEY) return res.send("id_list_message=t-מפתח החיפוש לא מוגדר.");
