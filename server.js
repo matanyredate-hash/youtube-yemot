@@ -114,7 +114,7 @@ app.get("/yemot-search", async (req, res) => {
     console.log("IVR request diagnostics:", JSON.stringify({
       keys: Object.keys(req.query),
       hasSong: Boolean(songQuery),
-      songLooksLikeRecordingPath: /\\.wav(?:$|\\?)/i.test(songQuery) || /^\\/[^/]+\\//.test(songQuery),
+      songLooksLikeRecordingPath: songQuery.toLowerCase().endsWith(".wav") || (songQuery.startsWith("/") && songQuery.includes("/")),
       hasChoice: Boolean(choice),
       choice: /^[1-5]$/.test(choice) ? choice : (choice ? "invalid" : ""),
       hangup: String(req.query.hangup || "").toLowerCase() === "yes"
