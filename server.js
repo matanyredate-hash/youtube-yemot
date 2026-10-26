@@ -222,7 +222,7 @@ app.get("/yemot-search", async (req, res) => {
       return res.send(`id_list_message=t-בחרתם אפשרות ${choice}. ${selected.title}`);
     }
     const spoken = results.map((item, i) => `אפשרות ${i + 1}. ${item.title}`).join(". ").slice(0, 1200);
-    return res.send(`id_list_message=t-${spoken}.&read=t-הקישו מספר מאחת עד חמש=CHOICE,,1,1,Digits`);
+    return res.send(`id_list_message=t-${spoken}&read=t-הקישו מספר מאחת עד חמש=CHOICE,,1,1,Digits`);
   } catch (error) {
     console.error("Yemot search handler failed:", error?.message || "unknown error");
     return res.status(200).send("id_list_message=t-אירעה שגיאה בשרת. נסו שוב.");
