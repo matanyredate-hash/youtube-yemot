@@ -110,6 +110,16 @@ app.get("/yemot-search", async (req, res) => {
     let songQuery = String(req.query.SONG || "").trim();
     const choice = String(req.query.CHOICE || "").trim();
 
+    // Safe diagnostics: never log the spoken query, credentials, tokens, or audio.
+    console.log("IVR request diagnostics:", JSON.stringify({
+      keys: Object.keys(req.query),
+      hasSong: Boolean(songQuery),
+      songLooksLikeRecordingPath: /\\.wav(?:$|\\?)/i.test(songQuery) || /^\\/[^/]+\\//.test(songQuery),
+      hasChoice: Boolean(choice),
+      choice: /^[1-5]$/.test(choice) ? choice : (choice ? "invalid" : ""),
+      hangup: String(req.query.hangup || "").toLowerCase() === "yes"
+    }));
+
     // A hangup callback can still include the saved recording path. Process it when present.
     if (String(req.query.hangup || "").toLowerCase() === "yes" && !songQuery && !choice) {
       return res.send("OK");
@@ -213,6 +223,11 @@ app.get("/yemot-search", async (req, res) => {
     const data = await response.json();
     const results = (data.items || []).filter(item => item.id?.videoId).slice(0, 5)
       .map(item => ({ videoId: item.id.videoId, title: cleanForTts(item.snippet?.title) }));
+    console.log("YouTube search diagnostics:", JSON.stringify({
+      resultCount: results.length,
+      hasChoice: Boolean(choice),
+      choiceValid: ["1", "2", "3", "4", "5"].includes(choice)
+    }));
     if (!results.length) return res.send("id_list_message=t-לא נמצאו תוצאות. נסו שוב.");
     if (choice) {
       const selected = results[Number(choice) - 1];
