@@ -219,7 +219,54 @@ app.get("/yemot-search", async (req, res) => {
       if (!selected || !["1", "2", "3", "4", "5"].includes(choice)) {
         return res.send("id_list_message=t-בחירה לא תקינה.");
       }
-      return res.send(`id_list_message=t-בחרתם אפשרות ${choice}. ${selected.title}`);
+      // Extract audio through the dedicated yt-dlp worker, then upload it to Yemot.
+      if (!process.env.AUDIO_WORKER_URL || !process.env.AUDIO_WORKER_TOKEN) {
+        return res.send("id_list_message=t-שירות השמע עדיין לא מוגדר בשרת.");
+      }
+      if (!YEMOT_USERNAME || !YEMOT_PASSWORD) {
+        return res.send("id_list_message=t-חסרים פרטי התחברות לימות.");
+      }
+
+      const workerResponse = await fetch(`${process.env.AUDIO_WORKER_URL.replace(/\\/$/, "")}/audio`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Worker-Token": process.env.AUDIO_WORKER_TOKEN
+        },
+        body: JSON.stringify({ videoId: selected.videoId })
+      });
+      if (!workerResponse.ok) {
+        console.error("Audio worker failed:", workerResponse.status);
+        return res.send("id_list_message=t-לא הצלחתי להכין את קובץ השמע. נסו שיר אחר.");
+      }
+
+      const audioBytes = await workerResponse.arrayBuffer();
+      if (!audioBytes.byteLength || audioBytes.byteLength > 45 * 1024 * 1024) {
+        return res.send("id_list_message=t-קובץ השמע ריק או גדול מדי.");
+      }
+
+      const uploadForm = new FormData();
+      uploadForm.set("token", `${YEMOT_USERNAME}:${YEMOT_PASSWORD}`);
+      uploadForm.set("path", "ivr2:9/000.wav");
+      uploadForm.set("convertAudio", "1");
+      uploadForm.set("autoNumbering", "false");
+      uploadForm.set("tts", "0");
+      uploadForm.set("fileUpload", new Blob([audioBytes], { type: "application/octet-stream" }), "selected-audio.bin");
+
+      const uploadResponse = await fetch(`${YEMOT_API_BASE}UploadFile`, {
+        method: "POST",
+        body: uploadForm
+      });
+      const uploadText = await uploadResponse.text();
+      let uploadData;
+      try { uploadData = JSON.parse(uploadText); } catch { uploadData = null; }
+      if (!uploadResponse.ok || (uploadData && uploadData.responseStatus && uploadData.responseStatus !== "OK") || (uploadData && uploadData.messageCode)) {
+        console.error("Yemot audio upload failed:", uploadResponse.status, uploadText.slice(0, 300));
+        return res.send("id_list_message=t-העלאת השמע לימות נכשלה.");
+      }
+
+      // Configure extension 9 in Yemot as type=playfile so it plays /9/000.wav.
+      return res.send("go_to_folder=/9");
     }
     const spoken = results.map((item, i) => `אפשרות ${i + 1}. ${item.title}`).join(". ").slice(0, 1200);
     return res.send(`id_list_message=t-${spoken}&read=t-הקישו מספר מאחת עד חמש=CHOICE,,1,1,Digits`);
