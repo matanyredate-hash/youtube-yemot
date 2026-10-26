@@ -2,6 +2,7 @@ import os
 import re
 import tempfile
 from pathlib import Path
+from io import BytesIO
 from flask import Flask, request, jsonify, send_file
 from yt_dlp import YoutubeDL
 
@@ -47,7 +48,8 @@ def audio():
             audio_path = candidates[0]
             if audio_path.stat().st_size == 0 or audio_path.stat().st_size > 45 * 1024 * 1024:
                 return jsonify({"error": "Audio file size is not supported"}), 413
-            return send_file(audio_path, mimetype="application/octet-stream", as_attachment=True, download_name="selected-audio.bin")
+            audio_bytes = audio_path.read_bytes()
+            return send_file(BytesIO(audio_bytes), mimetype="application/octet-stream", as_attachment=True, download_name="selected-audio.bin")
         except Exception as exc:
             app.logger.warning("yt-dlp extraction failed: %s", type(exc).__name__)
             return jsonify({"error": "Audio extraction failed; check worker logs"}), 502
