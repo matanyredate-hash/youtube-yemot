@@ -227,7 +227,10 @@ app.get("/yemot-search", async (req, res) => {
         return res.send("id_list_message=t-חסרים פרטי התחברות לימות.");
       }
 
-      const workerResponse = await fetch(`${process.env.AUDIO_WORKER_URL.replace(/\\/$/, "")}/audio`, {
+      const workerBaseUrl = process.env.AUDIO_WORKER_URL.endsWith("/")
+        ? process.env.AUDIO_WORKER_URL.slice(0, -1)
+        : process.env.AUDIO_WORKER_URL;
+      const workerResponse = await fetch(`${workerBaseUrl}/audio`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
