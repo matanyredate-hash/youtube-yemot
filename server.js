@@ -100,7 +100,7 @@ app.get("/yemot-search", async (req, res) => {
   res.set("Content-Type", "text/plain; charset=utf-8");
   try {
     const cleanForTts = (value) => String(value || "")
-      .replace(/[&=<>]/g, " ")
+      .replace(/[&=<>.]/g, " ")
       .replace(/[\r\n]+/g, " ")
       .replace(/[“”"']/g, "")
       .replace(/\s+/g, " ")
@@ -286,8 +286,8 @@ app.get("/yemot-search", async (req, res) => {
       // Configure extension 9 in Yemot as type=playfile so it plays /9/000.wav.
       return res.send("go_to_folder=/9");
     }
-    const spoken = results.map((item, i) => `אפשרות ${i + 1}. ${item.title}`).join(". ").slice(0, 1200);
-    return res.send(`id_list_message=t-${spoken}&read=t-הקישו מספר מאחת עד חמש=CHOICE,,1,1,NO,yes`);
+    const spoken = results.map((item, i) => `אפשרות ${i + 1} ${item.title}`).join(" ");
+    return res.send(`id_list_message=t-${spoken}&read=t-הקישו מספר מאחת עד חמש=CHOICE,no,1,1,7,Digits`);
   } catch (error) {
     console.error("Yemot search handler failed:", error?.message || "unknown error");
     return res.status(200).send("id_list_message=t-אירעה שגיאה בשרת. נסו שוב.");
